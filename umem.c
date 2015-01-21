@@ -1192,6 +1192,84 @@ umem_log_enter(umem_log_header_t *lhp, void *data, size_t size)
         return (logspace);
 }
 
+static void
+umem_transaction_log_enter(umem_bufctl_audit_t * _bcp)
+{
+	hrtime_t tnow = gethrtime();
+
+	hrtime_t diff = tnow - _bcp->bc_timestamp;
+	timespec_t ts;
+	ts.tv_sec = diff / NANOSEC;
+	ts.tv_nsec = diff % NANOSEC;
+	char *pStart = _bcp->szbuff;
+	int nLen = 0, d, ndiff=0;
+
+	//nLen = snprintf(pStart, 4096,"previous transaction on buffer %p:\n", _bcp->bc_addr);
+	//pStart += nLen;
+	ndiff = 256 - nLen;
+
+	nLen = snprintf(pStart, ndiff, "thread=%p  time=T-%ld.%09ld\n",
+			(void *)(intptr_t)_bcp->bc_thread, ts.tv_sec, ts.tv_nsec);
+	pStart += nLen;
+	ndiff = ndiff - nLen;
+
+	for (d = 0; d < MIN(_bcp->bc_depth, umem_stack_depth); d++) {
+		//(void) print_sym((void *)_bcp->bc_stack[d]);
+		void *pointer = (void *)_bcp->bc_stack[d];
+		{
+#if HAVE_SYS_MACHELF_H
+			int result;
+			Dl_info sym_info;
+
+			uintptr_t end = NULL;
+
+			Sym *ext_info = NULL;
+
+			result = dladdr1(pointer, &sym_info, (void **)&ext_info,
+					RTLD_DL_SYMENT);
+
+			if (result != 0) {
+				const char *endpath;
+
+				end = (uintptr_t)sym_info.dli_saddr + ext_info->st_size;
+
+				endpath = strrchr(sym_info.dli_fname, '/');
+				if (endpath)
+					endpath++;
+				else
+					endpath = sym_info.dli_fname;
+				snprintf(pStart,ndiff,"%s'", endpath);
+				pStart += nLen;
+				ndiff = ndiff - nLen;
+			}
+
+			if (result == 0 || (uintptr_t)pointer > end) {
+				snprintf(pStart, ndiff, "?? (0x%p)", pointer);
+				pStart += nLen;
+				ndiff = ndiff - nLen;
+				break;
+			} else {
+				snprintf(pStart, ndiff, "%s+0x%p", sym_info.dli_sname,
+						(char *)pointer - (char *)sym_info.dli_saddr);
+				pStart += nLen;
+				ndiff = ndiff - nLen;
+				break;
+			}
+#else
+			snprintf(pStart, ndiff,"?? (0x%p)", pointer);
+			pStart += nLen;
+			ndiff = ndiff - nLen;
+			break;
+#endif
+		}
+
+		snprintf(pStart, ndiff,"\n");
+		pStart += nLen;
+		ndiff = ndiff - nLen;
+	}
+
+}
+
 #define UMEM_AUDIT(lp, cp, bcp)                                         \
 {                                                                       \
         umem_bufctl_audit_t *_bcp = (umem_bufctl_audit_t *)(bcp);       \
@@ -1201,6 +1279,7 @@ umem_log_enter(umem_log_header_t *lhp, void *data, size_t size)
             (cp != NULL) && (cp->cache_flags & UMF_CHECKSIGNAL));       \
         _bcp->bc_lastlog = umem_log_enter((lp), _bcp,                   \
             UMEM_BUFCTL_AUDIT_SIZE);                                    \
+        umem_transaction_log_enter(_bcp);								\
 }
 
 static void

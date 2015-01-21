@@ -12,7 +12,9 @@ set $UMF_HASH = 256
 set $UMF_RANDOMIZE = 512
 
 define umastat_cache
+  #printf "+++++++++++++ inside umastat_cache ++++++++++++++++++"
   set $cp = $arg0
+  #printf "After 1st set"
   set $meminuse = ($cp->cache_slab_create - $cp->cache_slab_destroy) * $cp->cache_slabsize
 
   if (($cp->cache_cpu[0].cc_magsize != 0) || ($cp->cache_flags & $UMF_NOMAGAZINE))
@@ -25,11 +27,20 @@ define umastat_cache
   set $avail = $cp->cache_full.ml_total * $magsize
   set $total = $cp->cache_buftotal
 
+  #printf "################ before cpu caches"
+
   # walk the cpu caches
   set $cpu_current = 0
+  #printf "########### setting cpu_current"
   while $cpu_current < umem_max_ncpus
-    set $cpu = umem_cpus[$cpu_current]
-    set $cpu_cache = (umem_cpu_cache_t*)((char*)$cp + $cpu->cpu_cache_offset)
+    #set $cpu = umem_cpus[$cpu_current]
+    #printf "############## setting cpu"
+    set $offset = umem_cpus[$cpu_current]->cpu_cache_offset
+   # printf "########### added the offset"
+    set $cpu_cache = (umem_cpu_cache_t*)((char*)$cp + $offset)
+    #set $cpu_cache = (umem_cpu_cache_t*)((char*)$cp + $cpu->cpu_cache_offset)
+
+  #printf "############# inside first if"
 
     if $cpu_cache->cc_rounds > 0
       set $avail = $avail + $cpu_cache->cc_rounds
@@ -41,6 +52,8 @@ define umastat_cache
     
     set $cpu_current = $cpu_current + 1
   end
+
+  #printf "####### after cpu cache"
 
   # walk some slabs
   set $slab = $cp->cache_nullslab.slab_next
