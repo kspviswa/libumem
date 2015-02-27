@@ -159,7 +159,8 @@ typedef struct umem_bufctl_audit {
 	void			*bc_contents;	/* contents at last free */
 	int			bc_depth;	/* stack depth */
 	uintptr_t		bc_stack[1];	/* pc stack */
-	char		szbuff[256]; /* transaction log in plain english */
+	//char		szbuff[256]; /* transaction log in plain english */
+	void            *bc_callAddr[6]; /* array of call stack */
 } umem_bufctl_audit_t;
 
 #define	UMEM_LOCAL_BUFCTL_AUDIT(bcpp)					\

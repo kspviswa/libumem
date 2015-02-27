@@ -128,3 +128,33 @@ define umem_status
   printf "%s", $msg
 end
 
+define umalog
+	printf "Transaction Log\n"
+	printf "+++++++++++++++\n\n"
+	if umem_transaction_log != 0
+		set $log_header = (umem_cpu_log_header_t*) &umem_transaction_log->lh_cpu[0]
+		set $log_buffer = (umem_bufctl_audit_t*)$log_header->clh_current
+		
+		
+		
+		while $log_buffer != 0
+			set $depth = 0
+			set $log_str = $log_buffer->bc_callAddr
+			if $log_str != 0 && $log_str[$depth] != 0
+			    printf "\nBuffer %p\n", $log_buffer
+				printf "++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"
+				while $depth < 6 && $log_str[$depth] != 0
+					printf "[%p]\t", $log_str[$depth]
+					#set $resolve = `x $log_str[$depth]`
+					#if $log_str[$depth] != 0
+					#	printf "############ NO SYMBOL #########\n"
+					#end
+					info symbol $log_str[$depth]
+					#x /a $log_str[$depth]
+					set $depth = $depth + 1
+				end
+				printf "++++++++++++++++++++++++++++++++++++++++++++++++++++++\n"
+			end
+			set $log_buffer = $log_buffer + 192
+		end	
+	end

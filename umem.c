@@ -439,6 +439,8 @@
 
 #include "misc.h"
 
+#include <libunwind.h>
+
 #define UMEM_VMFLAGS(umflag)    (VM_NOSLEEP)
 
 size_t pagesize;
@@ -1195,6 +1197,28 @@ umem_log_enter(umem_log_header_t *lhp, void *data, size_t size)
 static void
 umem_transaction_log_enter(umem_bufctl_audit_t * _bcp)
 {
+	/* Getting help of libunwind to note down the call stack */
+
+	unw_cursor_t cursor;
+	unw_context_t uc;
+	unw_word_t ip, sp;
+	unw_getcontext(&uc);
+	unw_init_local(&cursor, &uc);
+
+	int ctr = 0;
+
+	while (unw_step(&cursor) > 0 && ctr >= 5) {
+	  unw_get_reg(&cursor, UNW_REG_IP, &ip);
+	  unw_get_reg(&cursor, UNW_REG_SP, &sp);
+	  _bcp->bc_callAddr[ctr++] = (void*)ip;
+	}
+}
+
+/*
+ * Following code snippet is kept to add more functionality to umalog
+ */
+
+/*{
 	hrtime_t tnow = gethrtime();
 
 	hrtime_t diff = tnow - _bcp->bc_timestamp;
@@ -1268,7 +1292,7 @@ umem_transaction_log_enter(umem_bufctl_audit_t * _bcp)
 		ndiff = ndiff - nLen;
 	}
 
-}
+}*/
 
 #define UMEM_AUDIT(lp, cp, bcp)                                         \
 {                                                                       \
@@ -1277,9 +1301,9 @@ umem_transaction_log_enter(umem_bufctl_audit_t * _bcp)
         _bcp->bc_thread = thr_self();                                   \
         _bcp->bc_depth = getpcstack(_bcp->bc_stack, umem_stack_depth,   \
             (cp != NULL) && (cp->cache_flags & UMF_CHECKSIGNAL));       \
+            umem_transaction_log_enter(_bcp);								\
         _bcp->bc_lastlog = umem_log_enter((lp), _bcp,                   \
             UMEM_BUFCTL_AUDIT_SIZE);                                    \
-        umem_transaction_log_enter(_bcp);								\
 }
 
 static void
